@@ -1,0 +1,186 @@
+/*// FILE: site.css */
+html {
+    font-size: 14px;
+}
+
+@media (min-width: 768px) {
+    html {
+        font-size: 16px;
+    }
+}
+
+.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+}
+
+html {
+    position: relative;
+    min-height: 100%;
+}
+
+body {
+    margin-bottom: 60px;
+    background-color: #000000;
+    color: #aaaaaa;
+}
+
+.form-control, .form-control:active {
+    background-color: #000000 !important;
+    color: #aaaaaa !important;
+}
+
+a, .nav-link {
+    color: #999900;
+}
+
+.personagem-select-group {
+    transition: all 0.3s ease;
+}
+
+.remove-personagem {
+    transition: opacity 0.2s;
+}
+
+    .remove-personagem:hover {
+        opacity: 0.8;
+    }
+
+.updated-row {
+    background-color: #666;
+    transition: background-color 1s ease;
+}
+
+.input-group {
+    display: inline !important;
+    vertical-align: middle;
+}
+
+.js-personagens:empty + span {
+    display: none;
+}
+
+.tabela {
+    table-layout: fixed;
+    width: 100%;
+    background-color: #000000;
+    color: #aaaaaa;
+}
+
+    .tabela td {
+        vertical-align: top;
+        padding-top: 15px;
+    }
+
+    .tabela tr {
+        border-bottom: solid 1px #999;
+    }
+
+    .tabela .ordem {
+        width: 5%;
+        text-align: center;
+    }
+
+    .tabela .texto {
+        width: 85%;
+    }
+
+    .tabela .botoes {
+        width: 10%;
+        text-align: right;
+    }
+
+.template-row {
+    display: inline-table;
+    width: 100%;
+}
+
+    .template-row .ordem {
+        width: 4%;
+        display: table-cell;
+        padding-right: 2%;
+    }
+
+    .template-row .texto {
+        width: 80%;
+        display: table-cell;
+        padding: 1%;
+    }
+
+    .template-row .botoes {
+        width: 7%;
+        display: table-cell;
+        padding: 1%;
+        vertical-align: bottom;
+        text-align: center;
+    }
+
+        .template-row .botoes .botao {
+            background-color: transparent;
+            border-color: transparent;
+            color: #999;
+            padding: 0 !important;
+            border-radius: 50%;
+        }
+
+            .template-row .botoes .botao:hover,
+            .template-row .botoes .botao:focus {
+                font-weight: bold;
+                background-color: #333;
+                border-color: #fff;
+                color: #fff;
+            }
+
+        .template-row .botoes .confirma {
+            font-size: 30px;
+            padding-top: 0 !important;
+            padding-bottom: 15px !important;
+            height: 50px;
+            width: 50px;
+        }
+
+        .template-row .botoes .cancela {
+            margin-top: 5px;
+            font-size: 100%;
+            height: 30px;
+            width: 30px;
+        }
+
+.show-form {
+    display: block;
+    width: 99%;
+    background-color: transparent;
+    border: solid 2px #999;
+    color: #999;
+    height: 50px;
+    text-transform: uppercase;
+}
+
+    .show-form:hover,
+    .show-form:focus {
+        font-weight: bold;
+        background-color: #333;
+        border-color: #fff;
+        color: #fff;
+    }
+
+.lista-instrucoes .botoes .botao {
+    background-color: transparent;
+    border-color: #999;
+    color: #999;
+}
+
+    .lista-instrucoes .botoes .botao:hover,
+    .lista-instrucoes .botoes .botao:focus {
+        background-color: transparent;
+        border-color: transparent;
+        color: #fff;
+    }
+.form-feedback {
+    position: fixed;
+    top: 50px;
+    right: 50px;
+}
+
+.atwho-container {
+    z-index: 9999 !important;
+}

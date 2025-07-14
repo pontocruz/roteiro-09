@@ -1,0 +1,80 @@
+﻿@* // FILE: Views/Roteiros/_instrucaoRow.cshtml *@
+@model ProjetoAplicativo.Models.Instrucao
+@{
+	var separadorExecutor = "-";
+}
+@{
+	var textoComBotoes = ProjetoAplicativo.Controllers.RoteirosController.ParseMentionsToButtons(Model.Texto);
+}
+<tr data-id="@Model.Id">
+	<td class="ordem"><label class="js-ordem">@Model.OrdemCronologica</label><br /><label data-field="tipo" class="js-tipo">[@Model.TipoDeInstrucao]</label></td>
+	<td class="texto">
+
+		<strong data-field="personagens" class="js-personagens">
+			@{
+				if (Model.InstrucoesPersonagens?.Any(ins => ins.ShowAll) == true)
+				{
+					<button class="personagem-btn" data-personagem-id="ALL" data-personagem-type="executor-all">TODOS</button>
+				}
+				else if (Model.InstrucoesPersonagens?.Any(ins => ins.ShowAllExcept) == true)
+				{
+					var exceptions = Model.InstrucoesPersonagens
+					.Where(ins => ins.ShowAllExcept && ins.Personagem != null)
+					.Select(ins => new { ins.Personagem.Id, ins.Personagem.Nome });
+
+					<button class="personagem-btn" data-personagem-id="ALLEXCEPT" data-personagem-type="executor-allexcept">
+						TODOS exceto
+					</button>
+
+					foreach (var exception in exceptions)
+					{
+						<button class="personagem-btn exception-btn"
+								data-personagem-id="@exception.Id"
+								data-personagem-type="executor-exception">
+							@exception.Nome
+						</button>
+						@if (exception != exceptions.Last())
+						{
+							<text>, </text>
+						}
+					}
+				}
+				else if (Model.InstrucoesPersonagens?.Any() == true)
+				{
+					var executors = Model.InstrucoesPersonagens
+					.Where(ins => ins.Personagem != null && !ins.ShowAllExcept)
+					.Select(ins => new { ins.Personagem.Id, ins.Personagem.Nome });
+
+					foreach (var executor in executors)
+					{
+						<button class="personagem-btn"
+								data-personagem-id="@executor.Id"
+								data-personagem-type="executor">
+							@executor.Nome
+						</button>
+						@if (executor != executors.Last())
+						{
+							<text>, </text>
+						}
+					}
+				}
+			}
+		</strong>
+
+		@if (Model.InstrucoesPersonagens?.Any() == true)
+		{
+			<label class="separador-executor">@separadorExecutor</label>
+		}
+		<span data-field="texto" class="js-texto">@Html.Raw(textoComBotoes)</span>
+	</td>
+	<td class="botoes">
+		<button class="botao insert-above" data-id="@Model.Id" title="inserir nova linha acima">+ acima</button>
+		<button class="botao move-up" data-id="@Model.Id" title="mover para cima">mover ↑</button>
+		<br />
+		<button class="botao edit-instruction" data-id="@Model.Id" title="editar">editar</button>
+		<button class="botao delete-instruction ms-2" data-id="@Model.Id">⛌</button>
+		<br />
+		<button class="botao move-down" data-id="@Model.Id" title="mover para baixo">mover ↓</button>
+		<button class="botao insert-below" data-id="@Model.Id" title="inserir nova linha abaixo">+ abaixo</button>
+	</td>
+</tr>
