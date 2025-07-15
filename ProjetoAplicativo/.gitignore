@@ -1,13 +1,12 @@
-.idea/
-.vs/
 bin/
 obj/
+.vs/
+.idea/
 *.user
 *.suo
 *.cache
 *.pdb
 *.dll
-
 ﻿# Default ignored files
 /shelf/
 /workspace.xml
