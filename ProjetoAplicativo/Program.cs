@@ -8,8 +8,10 @@ builder.Services.AddControllersWithViews();
 
 
 //pomelo
-var conexaoRoteiro = builder.Configuration.GetConnectionString("ConexaoRoteiro4"); var versaoRoteiro = new MySqlServerVersion(ServerVersion.AutoDetect(conexaoRoteiro));
+var conexaoRoteiro = builder.Configuration.GetConnectionString("DefaultConnection"); 
+var versaoRoteiro = ServerVersion.AutoDetect(conexaoRoteiro);
 builder.Services.AddDbContext<ModeloEntidades>(options => options.UseMySql(conexaoRoteiro, versaoRoteiro));
+
 
 builder.Services.AddCors(options => {
     options.AddPolicy("ReactLocalhost",
