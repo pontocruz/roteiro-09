@@ -5,51 +5,66 @@
 	ViewData["Title"] = Model.Nome;
 }
 <script>
-	// Add this at the top of your script section
 	const currentCenaId = @Model.Id; // This comes from your controller's View
 </script>
-<input type="hidden" id="formState" data-modo="idle" data-rowid="0" />
 <h2>@ViewData["Title"]</h2>
 <table class="tabela lista-instrucoes">
+	
+	<template id="formTemplate">
+		<tr class="form-container">
+			<td colspan="3">
+				<span class="template-row">
+					<form id="instrucaoForm">
+						@Html.AntiForgeryToken()
+						<input type="hidden" name="CenaId" value="@Model.Id"/>
+						<span class="ordem">
+							<label class="numero"> nova </label>
+							<br/><br/>
+							<select name="TipoDeInstrucao"
+							        asp-items="Html.GetEnumSelectList<EnumInstrucao.TipoDeInstrucao>()">
+							</select>
+						</span>
+						<span class="texto">
+							<template id="personagemSelectTemplate">
+								<span class="personagem-select-group">
+									<select name="personagemIds[]" class="personagem-select">
+										<option value="0">------------------</option>
+										@foreach (var personagem in ViewBag.Personagens)
+										{
+											<option value="@personagem.Id">@personagem.Nome</option>
+										}
+										<option value="-1">TODOS</option>
+										<option value="-2">TODOS exceto</option>
+									</select>
+									<button type="button" class="btn btn-outline-danger remove-personagem">×</button>
+								</span>
+							</template>
+							<span id="dynamicPersonagemContainer"></span>
+							<button type="button" id="addPersonagem" class="btn btn-secondary mb-3">+</button>
+							<textarea id="textoInstrucao" name="Texto" class="form-control" rows="3"></textarea>
+						</span>
+						<span class="botoes">
+							<button type="submit" class="botao confirma"> ➜ </button>
+							<br/>
+							<button type="button" id="cancelaForm" class="botao cancela"> ⛌ </button>
+						</span>
+					</form>
+				</span>
+			</td>
+		</tr>
+	</template>
+
 	@foreach (var instrucao in Model.Instrucoes)
 	{
 		@await Html.PartialAsync("_InstrucaoRow", instrucao)
 	}
+
+
 </table>
-<template id="formTemplate">
-	<span class="template-row">
-		<form id="instrucaoForm">
-			@Html.AntiForgeryToken()
-			<input type="hidden" name="CenaId" value="@Model.Id" />
-			<span class="ordem"><label class="numero"> nova </label><br /><br /><select name="TipoDeInstrucao" asp-items="Html.GetEnumSelectList<EnumInstrucao.TipoDeInstrucao>()"></select></span>
-			<span class="texto">
-				<template id="personagemSelectTemplate">
-					<span class="personagem-select-group">
-						<select name="personagemIds[]" class="personagem-select">
-							<option value="0">------------------</option>
-							@foreach (var personagem in ViewBag.Personagens)
-							{
-								<option value="@personagem.Id">@personagem.Nome</option>
-							}
-							<option value="-1">TODOS</option>
-							<option value="-2">TODOS exceto</option>
-						</select>
-						<button type="button" class="btn btn-outline-danger remove-personagem">×</button>
-					</span>
-				</template>
-				<span id="dynamicPersonagemContainer"></span>
-				<button type="button" id="addPersonagem" class="btn btn-secondary mb-3">+</button>
-				<textarea id="textoInstrucao" name="Texto" class="form-control" rows="3"></textarea>
-			</span>
-			<span class="botoes">
-				<button type="submit" class="botao confirma"> ➜ </button>
-				<br />
-				<button type="button" id="cancelaForm" class="botao cancela"> ⛌ </button>
-			</span>
-		</form>
-	</span>
-</template><div id="formContainerDiv"></div>
-<button type="button" id="showForm" class="show-form">Criar nova instrução</button><div id="formFeedback" class="form-feedback"></div>
+<button type="button" id="showForm" class="show-form">Criar nova instrução</button>
+<div id="formFeedback" class="form-feedback"></div>
+
 @section Scripts {
-	<script src="~/js/editaRoteiro.js" asp-append-version="true"></script>
+	<script src="~/js/roteiro-vanilla.js" asp-append-version="true"></script>
+	@* <script src="~/js/novo.js"></script> *@
 }

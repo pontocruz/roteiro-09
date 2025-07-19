@@ -7,18 +7,18 @@ let stateModo = 'idle'; let stateReferenceRowId = 0;
 function setFormState(modo, referenceRowId) {
     const currentModo = stateModo; const currentRowId = stateReferenceRowId;
     const referenceRow = $(`tr[data-id="${referenceRowId}"]`);
-    if (currentModo == 'edit' && currentRowId != referenceRowId) { $(`tr[data-id="${currentRowId}"]`).show(); }
+    if (currentModo === 'edit' && currentRowId !== referenceRowId) { $(`tr[data-id="${currentRowId}"]`).show(); }
     $('.form-container').remove(); $('#formFeedback').empty();
     if (modo !== 'idle') {
         const formContainer = $('<tr class="form-container"><td colspan="3"></td></tr>');
         const clonedTemplate = $('#formTemplate').html();
         formContainer.find('td').append(clonedTemplate);
-        if (modo == 'create') { $('#showForm').hide(); } else { $('#showForm').show(); }
-        if (modo == 'create') { $('.tabela').append(formContainer); }
-        if (modo == 'above') { referenceRow.before(formContainer); }
-        if (modo == 'below') { referenceRow.after(formContainer); }
-        if (modo == 'edit') { referenceRow.after(formContainer); referenceRow.hide(); }
-        if (modo == 'edit') { $('#dynamicPersonagemContainer').html($('#personagemSelectTemplate').html()); } else { resetToSingleSelect(); }
+        if (modo === 'create') { $('#showForm').hide(); } else { $('#showForm').show(); }
+        if (modo === 'create') { $('.tabela').append(formContainer); }
+        if (modo === 'above') { referenceRow.before(formContainer); }
+        if (modo === 'below') { referenceRow.after(formContainer); }
+        if (modo === 'edit') { referenceRow.after(formContainer); referenceRow.hide(); }
+        if (modo === 'edit') { $('#dynamicPersonagemContainer').html($('#personagemSelectTemplate').html()); } else { resetToSingleSelect(); }
         initPersonagemHandlers(); initMentions();
         $('html, body').animate({ scrollTop: formContainer.offset().top - 300 }, 1000);
         $('#cancelaForm').off('click').on('click', function () { setFormState('idle', 0); });
@@ -28,7 +28,8 @@ function setFormState(modo, referenceRowId) {
 
 function updateFormState(newModo, newReferenceRowId) {
     stateModo = newModo; stateReferenceRowId = newReferenceRowId;
-    $('#formState').attr("data-modo", newModo); $('#formState').attr("data-rowid", newReferenceRowId);
+    $('#formState').attr("data-modo", newModo); 
+    $('#formState').attr("data-rowid", newReferenceRowId);
 }
 
 function setSuccess(response) {

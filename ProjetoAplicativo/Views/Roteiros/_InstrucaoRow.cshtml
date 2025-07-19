@@ -6,7 +6,7 @@
 @{
 	var textoComBotoes = ProjetoAplicativo.Controllers.RoteirosController.ParseMentionsToButtons(Model.Texto);
 }
-<tr data-id="@Model.Id">
+<tr data-id="@Model.Id" id="row-@Model.Id">
 	<td class="ordem"><label class="js-ordem">@Model.OrdemCronologica</label><br /><label data-field="tipo" class="js-tipo">[@Model.TipoDeInstrucao]</label></td>
 	<td class="texto">
 

@@ -1,4 +1,5 @@
 ﻿// FILE: RoteirosControllers.cs
+
 using System.Text.RegularExpressions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -6,23 +7,52 @@ using ProjetoAplicativo.Data;
 using ProjetoAplicativo.Helpers;
 using ProjetoAplicativo.Models;
 using static ProjetoAplicativo.Models.Enums.EnumInstrucao;
+
 namespace ProjetoAplicativo.Controllers
 {
     public class RoteirosController : Controller
     {
-        private readonly ModeloEntidades _context; public RoteirosController(ModeloEntidades context) { _context = context; }
+        private readonly ModeloEntidades _context;
+
+        public RoteirosController(ModeloEntidades context)
+        {
+            _context = context;
+        }
 
         public async Task<IActionResult> EditaRoteiro(int? id)
         {
-            if (id == null || _context.Cena == null) { return NotFound(); }
-            var cena = await _context.Cena.Include(c => c.Instrucoes).ThenInclude(i => i.InstrucoesPersonagens).ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(c => c.Id == id);
-            if (cena == null) { return NotFound(); }
-            ViewBag.Personagens = await _context.PecaPersonagem.Where(ps => ps.PecaId == cena.PecaId).Select(ps => new { ps.Personagem.Id, ps.Personagem.Nome }).ToListAsync();
-            cena.Instrucoes = cena.Instrucoes?.OrderBy(i => i.OrdemCronologica).ToList(); return View(cena);
+            if (id == null || _context.Cena == null)
+            {
+                return NotFound();
+            }
+
+            var cena = await _context.Cena
+                .Include(c => c.Instrucoes)
+                .ThenInclude(i => i.InstrucoesPersonagens
+                    .Where(ip => ip.TipoDeParticipacao == TipoDeParticipacao.Executor ||
+                                 ip.TipoDeParticipacao == TipoDeParticipacao.Exceto))
+                .ThenInclude(ins => ins.Personagem)
+                .FirstOrDefaultAsync(c => c.Id == id);
+
+            if (cena == null)
+            {
+                return NotFound();
+            }
+
+            ViewBag.Personagens = await _context.PecaPersonagem
+                .Where(ps => ps.PecaId == cena.PecaId)
+                .Select(ps => new { ps.Personagem.Id, ps.Personagem.Nome })
+                .ToListAsync();
+
+            cena.Instrucoes = cena.Instrucoes?
+                .OrderBy(i => i.OrdemCronologica)
+                .ToList();
+
+            return View(cena);
         }
 
 
-        #region MENTION 
+        #region MENTION
 
         [HttpGet]
         public async Task<IActionResult> GetPersonagensForMentions(int cenaId) // Add cenaId parameter
@@ -82,59 +112,90 @@ namespace ProjetoAplicativo.Controllers
                 return text;
 
             return Regex.Replace(text, @"@\[(\d+)\|([^\]]+)\]",
-                match => $"<button class='mention-btn' data-personagem-id='{match.Groups[1].Value}'>{match.Groups[2].Value}</button>");
+                match =>
+                    $"<button class='mention-btn' data-personagem-id='{match.Groups[1].Value}'>{match.Groups[2].Value}</button>");
         }
 
-        #endregion MENTION 
+        #endregion MENTION
 
 
-        #region POSTS 
+        #region POSTS
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> CreateInstrucao([FromForm] int CenaId, [FromForm] TipoDeInstrucao TipoDeInstrucao, [FromForm] string? Texto, [FromForm] List<int>? personagemIds = null)
+        public async Task<IActionResult> CreateInstrucao([FromForm] int CenaId,
+            [FromForm] TipoDeInstrucao TipoDeInstrucao, [FromForm] string? Texto,
+            [FromForm] List<int>? personagemIds = null)
         {
             var ordem = await GetNextOrderNumber(CenaId);
 
             var (success, html, error) = await CreateInstructionCoreAsync(
-                    CenaId, TipoDeInstrucao, Texto, ordem, personagemIds);
+                CenaId, TipoDeInstrucao, Texto, ordem, personagemIds);
             return Json(new { success, html = success ? html : null, error = !success ? error : null });
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> InsertInstrucao([FromForm] int CenaId, [FromForm] TipoDeInstrucao TipoDeInstrucao, [FromForm] string Texto, [FromForm] int OrdemCronologica = 0, [FromForm] List<int>? personagemIds = null, [FromForm] int referenceId = 0, [FromForm] string insertPosition = "below")
+        public async Task<IActionResult> InsertInstrucao([FromForm] int CenaId,
+            [FromForm] TipoDeInstrucao TipoDeInstrucao, [FromForm] string Texto, [FromForm] int OrdemCronologica = 0,
+            [FromForm] List<int>? personagemIds = null, [FromForm] int referenceId = 0,
+            [FromForm] string insertPosition = "below")
         {
             try
             {
                 var reference = await _context.Instrucao.FirstOrDefaultAsync(i => i.Id == referenceId);
                 int newOrder = insertPosition == "above" ? reference.OrdemCronologica : reference.OrdemCronologica + 1;
-                var instructionsToUpdate = await _context.Instrucao.Where(i => i.CenaId == CenaId && i.OrdemCronologica >= newOrder).ToListAsync();
+                var instructionsToUpdate = await _context.Instrucao
+                    .Where(i => i.CenaId == CenaId && i.OrdemCronologica >= newOrder).ToListAsync();
                 instructionsToUpdate.ForEach(i => i.OrdemCronologica++);
                 await _context.SaveChangesAsync();
-                var (success, html, error) = await CreateInstructionCoreAsync(CenaId, TipoDeInstrucao, Texto, newOrder, personagemIds);
+                var (success, html, error) =
+                    await CreateInstructionCoreAsync(CenaId, TipoDeInstrucao, Texto, newOrder, personagemIds);
                 return Json(new { success, html = success ? html : null, error = !success ? error : null });
             }
-            catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
         }
 
         [HttpPost]
         [ValidateAntiForgeryToken]
-        public async Task<IActionResult> EditInstrucao([FromForm] int Id, [FromForm] TipoDeInstrucao TipoDeInstrucao, [FromForm] string Texto, [FromForm] int OrdemCronologica, [FromForm] List<int>? personagemIds = null)
+        public async Task<IActionResult> EditInstrucao([FromForm] int Id, [FromForm] TipoDeInstrucao TipoDeInstrucao,
+            [FromForm] string Texto, [FromForm] int OrdemCronologica, [FromForm] List<int>? personagemIds = null)
         {
             try
             {
-                var instrucao = await _context.Instrucao.Include(i => i.InstrucoesPersonagens).ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == Id);
-                if (instrucao == null) { return Json(new { success = false, error = "Instrução não encontrada" }); }
-                instrucao.TipoDeInstrucao = TipoDeInstrucao; instrucao.Texto = Texto; instrucao.OrdemCronologica = OrdemCronologica;
+                var instrucao = await _context.Instrucao
+                    .Include(i => i.InstrucoesPersonagens
+                        .Where(insp => insp.TipoDeParticipacao == TipoDeParticipacao.Executor ||
+                                       insp.TipoDeParticipacao == TipoDeParticipacao.Exceto))
+                    .ThenInclude(ins => ins.Personagem)
+                    .FirstOrDefaultAsync(i => i.Id == Id);
+                if (instrucao == null)
+                {
+                    return Json(new { success = false, error = "Instrução não encontrada" });
+                }
+
+                instrucao.TipoDeInstrucao = TipoDeInstrucao;
+                instrucao.Texto = Texto;
+                instrucao.OrdemCronologica = OrdemCronologica;
                 await HandlePersonagens(instrucao.Id, personagemIds, clearExisting: true);
                 await _context.SaveChangesAsync();
                 _context.Entry(instrucao).State = EntityState.Detached;
-                var result = await _context.Instrucao.AsNoTracking().Include(i => i.InstrucoesPersonagens).ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == instrucao.Id);
+                var result = await _context.Instrucao
+                    .AsNoTracking()
+                    .Include(i => i.InstrucoesPersonagens
+                        .Where(insp => insp.TipoDeParticipacao == TipoDeParticipacao.Executor ||
+                                       insp.TipoDeParticipacao == TipoDeParticipacao.Exceto))
+                    .ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == instrucao.Id);
                 var html = await this.RenderViewToStringAsync("_InstrucaoRow", result);
                 return Json(new { success = true, html });
             }
-            catch (Exception ex) { return Json(new { success = false, error = ex.Message, stackTrace = ex.StackTrace }); }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message, stackTrace = ex.StackTrace });
+            }
         }
 
         [HttpPost]
@@ -143,10 +204,21 @@ namespace ProjetoAplicativo.Controllers
             try
             {
                 var instructions = await _context.Instrucao.Where(i => i.CenaId == cenaId).ToListAsync();
-                foreach (var instruction in instructions) { if (newOrder.TryGetValue(instruction.Id, out var newOrderNum)) { instruction.OrdemCronologica = newOrderNum; } }
-                await _context.SaveChangesAsync(); return Json(new { success = true });
+                foreach (var instruction in instructions)
+                {
+                    if (newOrder.TryGetValue(instruction.Id, out var newOrderNum))
+                    {
+                        instruction.OrdemCronologica = newOrderNum;
+                    }
+                }
+
+                await _context.SaveChangesAsync();
+                return Json(new { success = true });
             }
-            catch (Exception ex) { return Json(new { success = false, error = ex.Message }); }
+            catch (Exception ex)
+            {
+                return Json(new { success = false, error = ex.Message });
+            }
         }
 
         [HttpPost]
@@ -189,7 +261,7 @@ namespace ProjetoAplicativo.Controllers
                 return Json(new
                 {
                     success = true,
-                    newOrder = deletedOrder  // Return the position that was deleted
+                    newOrder = deletedOrder // Return the position that was deleted
                 });
             }
             catch (Exception ex)
@@ -202,19 +274,20 @@ namespace ProjetoAplicativo.Controllers
                 });
             }
         }
+
         public class DeleteInstructionRequest
         {
             public int Id { get; set; }
         }
 
-
-        #endregion POSTS 
+        #endregion POSTS
 
 
         #region SHARED PRIVATE METHODS
 
         private async Task<(bool Success, string Html, string Error)>
-            CreateInstructionCoreAsync(int cenaId, TipoDeInstrucao tipo, string? texto, int ordem, List<int>? executorIds)
+            CreateInstructionCoreAsync(int cenaId, TipoDeInstrucao tipo, string? texto, int ordem,
+                List<int>? executorIds)
         {
             try
             {
@@ -253,10 +326,11 @@ namespace ProjetoAplicativo.Controllers
                 // Clear ONLY Executor/Exceto personagens (not Citado)
                 await _context.InstrucaoPersonagem
                     .Where(x => x.InstrucaoId == instrucaoId &&
-                               (x.TipoDeParticipacao == TipoDeParticipacao.Executor ||
-                                x.TipoDeParticipacao == TipoDeParticipacao.Exceto))
+                                (x.TipoDeParticipacao == TipoDeParticipacao.Executor ||
+                                 x.TipoDeParticipacao == TipoDeParticipacao.Exceto))
                     .ExecuteDeleteAsync();
             }
+
             if (personagemIds == null || !personagemIds.Any()) return;
             if (personagemIds.Contains(-1))
             {
@@ -284,9 +358,14 @@ namespace ProjetoAplicativo.Controllers
             {
                 foreach (var personagemId in personagemIds.Where(id => id > 0))
                 {
-                    await _context.InstrucaoPersonagem.AddAsync(new InstrucaoPersonagem { InstrucaoId = instrucaoId, PersonagemId = personagemId, TipoDeParticipacao = TipoDeParticipacao.Executor });
+                    await _context.InstrucaoPersonagem.AddAsync(new InstrucaoPersonagem
+                    {
+                        InstrucaoId = instrucaoId, PersonagemId = personagemId,
+                        TipoDeParticipacao = TipoDeParticipacao.Executor
+                    });
                 }
             }
+
             await _context.SaveChangesAsync();
         }
 
@@ -305,6 +384,7 @@ namespace ProjetoAplicativo.Controllers
                     TipoDeParticipacao = TipoDeParticipacao.Citado
                 });
             }
+
             await _context.SaveChangesAsync();
         }
 
@@ -321,7 +401,8 @@ namespace ProjetoAplicativo.Controllers
 
         private async Task<int> GetNextOrderNumber(int cenaId)
         {
-            var lastOrder = await _context.Instrucao.Where(i => i.CenaId == cenaId).OrderByDescending(i => i.OrdemCronologica).Select(i => i.OrdemCronologica).FirstOrDefaultAsync();
+            var lastOrder = await _context.Instrucao.Where(i => i.CenaId == cenaId)
+                .OrderByDescending(i => i.OrdemCronologica).Select(i => i.OrdemCronologica).FirstOrDefaultAsync();
             return lastOrder + 1;
         }
 
@@ -333,13 +414,22 @@ namespace ProjetoAplicativo.Controllers
         [HttpGet]
         public async Task<IActionResult> GetRowTemplate(int id)
         {
-            var instrucao = await _context.Instrucao.Include(i => i.InstrucoesPersonagens).ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == id);
+            var instrucao = await _context.Instrucao
+                .Include(i => i.InstrucoesPersonagens)
+                .ThenInclude(ins => ins.Personagem)
+                .FirstOrDefaultAsync(i => i.Id == id);
             return PartialView("_InstrucaoRow", instrucao);
         }
+
         [HttpGet]
         public async Task<IActionResult> GetInstrucao(int id)
         {
-            var instrucao = await _context.Instrucao.Include(i => i.InstrucoesPersonagens).ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == id);
+            var instrucao = await _context.Instrucao
+                .Include(i => i.InstrucoesPersonagens
+                    .Where(insp =>
+                        insp.TipoDeParticipacao == TipoDeParticipacao.Executor ||
+                        insp.TipoDeParticipacao == TipoDeParticipacao.Exceto))
+                .ThenInclude(ins => ins.Personagem).FirstOrDefaultAsync(i => i.Id == id);
             if (instrucao == null) return NotFound();
             return Json(new
             {
@@ -350,16 +440,20 @@ namespace ProjetoAplicativo.Controllers
                 ordem = instrucao.OrdemCronologica,
                 personagemIds = instrucao.InstrucoesPersonagens.Select(ins => ins.PersonagemId).ToArray(),
                 instrucoesPersonagens = instrucao.InstrucoesPersonagens.Select(ins => new
-                { showAll = ins.ShowAll, showAllExcept = ins.ShowAllExcept, personagemId = ins.PersonagemId }).ToList()
+                        { showAll = ins.ShowAll, showAllExcept = ins.ShowAllExcept, personagemId = ins.PersonagemId })
+                    .ToList()
             });
         }
+
         [HttpGet]
         public async Task<IActionResult> CheckForDuplicates(int instrucaoId, int personagemId, TipoDeParticipacao tipo)
         {
-            var exists = await _context.InstrucaoPersonagem.AnyAsync(x => x.InstrucaoId == instrucaoId && x.PersonagemId == personagemId && x.TipoDeParticipacao == tipo);
+            var exists = await _context.InstrucaoPersonagem.AnyAsync(x =>
+                x.InstrucaoId == instrucaoId && x.PersonagemId == personagemId && x.TipoDeParticipacao == tipo);
             return Json(new { isDuplicate = exists });
         }
-        #endregion OUTROS 
+
+        #endregion OUTROS
 
         #region MOVE
 
@@ -434,9 +528,13 @@ namespace ProjetoAplicativo.Controllers
             public int Id { get; set; }
         }
 
-        private enum Direction { Up, Down }
+        private enum Direction
+        {
+            Up,
+            Down
+        }
 
-        #endregion MOVE 
+        #endregion MOVE
 
         [HttpGet]
         public async Task<IActionResult> GetInstrucoesJson(int id)
@@ -467,7 +565,5 @@ namespace ProjetoAplicativo.Controllers
 
             return Json(result);
         }
-
     }
 }
-

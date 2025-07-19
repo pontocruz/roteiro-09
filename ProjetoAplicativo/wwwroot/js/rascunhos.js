@@ -1,4 +1,150 @@
 ﻿
+function setFormState(modo, referenceRowId) {
+    const {modo: currentModo, referenceRowId: currentRowId} = state;
+    const referenceRow = document.querySelector(`tr[data-id="${referenceRowId}"]`);
+
+    // Clean up previous state
+    if (currentModo === 'edit' && currentRowId !== referenceRowId) {
+        const previousRow = document.querySelector(`tr[data-id="${currentRowId}"]`);
+        if (previousRow) previousRow.style.display = '';
+    }
+
+    // Remove existing form containers
+    document.querySelectorAll('.form-container').forEach(el => el.remove());
+
+
+    if (modo !== 'idle') {
+        // Create new form container
+        const formContainer = document.createElement('tr');
+        formContainer.className = 'form-container';
+        formContainer.innerHTML = '<td colspan="3"></td>';
+
+// Clone template content
+        const clonedTemplate = document.getElementById('formTemplate');
+        if (clonedTemplate) {
+            formContainer.querySelector('td').appendChild(clonedTemplate.content.cloneNode(true));
+        }
+
+        const showFormButton = document.getElementById('showForm');
+        const table = document.querySelector('.tabela');
+
+        if (modo === 'create') {
+            if (showFormButton) showFormButton.style.display = 'none';
+            if (table) table.appendChild(formContainer);
+        } else {
+            if (showFormButton) showFormButton.style.display = '';
+            if (referenceRow) {
+                if (modo === 'above') {
+                    referenceRow.before(formContainer);
+                } else {
+                    referenceRow.after(formContainer);
+                }
+            }
+        }
+
+        // Edit mode specific logic
+        if (modo === 'edit') {
+            if (referenceRow) referenceRow.style.display = 'none';
+
+            const personagemContainer = document.getElementById('dynamicPersonagemContainer');
+            const personagemTemplate = document.getElementById('personagemSelectTemplate');
+            if (personagemContainer && personagemTemplate) {
+                personagemContainer.innerHTML = personagemTemplate.innerHTML;
+            }
+        } else {
+            resetToSingleSelect();
+        }
+
+        // Initialize components
+        initPersonagemHandlers();
+        initMentions();
+
+        // Scroll to form
+        if (formContainer) {
+            const offset = formContainer.getBoundingClientRect().top + window.pageYOffset - 300;
+            window.scrollTo({ top: offset, behavior: 'smooth' });
+        }
+
+
+        // Cancel button handler
+        const cancelButton = document.getElementById('cancelaForm');
+        if (cancelButton) {
+            cancelButton.replaceWith(cancelButton.cloneNode(true)); // Remove existing listeners
+            cancelButton.addEventListener('click', () => setFormState('idle', 0));
+        }
+
+    } else {
+        const showFormButton = document.getElementById('showForm');
+        if (showFormButton) showFormButton.style.display = '';
+    }
+    state.update(modo, referenceRowId);
+}
+
+
+
+
+
+
+
+
+function setFormState(modo, referenceRowId) {
+    const { modo: currentModo, referenceRowId: currentRowId } = state;
+    const referenceRow = $$$(`tr[data-id="$$${referenceRowId}"]`);
+
+    // Cleanup previous state
+    if (currentModo === 'edit' && currentRowId !== referenceRowId) {
+        $$$(`tr[data-id="$$${currentRowId}"]`).style.display = '';
+    }
+    document.querySelectorAll('.form-container, #formFeedback').forEach(el => el.remove());
+
+    if (modo === 'idle') {
+        $$$('#showForm').style.display = '';
+        state.update('idle', 0);
+        return;
+    }
+
+    // Create new form
+    const formContainer = createElement('tr', { className: 'form-container' });
+    formContainer.innerHTML = `<td colspan="3">$$${$$$('#formTemplate').innerHTML}</td>`;
+
+    // Position form
+    const table = $$$('.tabela');
+    if (modo === 'create') {
+        $$$('#showForm').style.display = 'none';
+        table.appendChild(formContainer);
+    } else {
+        $$$('#showForm').style.display = '';
+        referenceRow[modo === 'above' ? 'before' : 'after'](formContainer);
+        if (modo === 'edit') referenceRow.style.display = 'none';
+    }
+
+    // Initialize components
+    initPersonagemHandlers();
+    initMentions();
+    formContainer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+    // Form cancel handler
+    $$$('#cancelaForm').onclick = () => setFormState('idle', 0);
+    state.update(modo, referenceRowId);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 $(document).on('click', '.delete-instruction', function () {
     if (!confirm('Tem certeza que deseja excluir esta instrução?')) {
         return;
