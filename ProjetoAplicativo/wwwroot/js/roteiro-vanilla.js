@@ -1,7 +1,10 @@
 ﻿// FILE: EditaRoteiro.js
 
+//#region -- CONSTANTS
+
 const MAX_PERSONAGEM_SELECTS = 10;
 const URLS = {
+    GET: '/Roteiros/GetInstrucao',
     CREATE: '/Roteiros/CreateInstrucao',
     EDIT: '/Roteiros/EditInstrucao',
     INSERT: '/Roteiros/InsertInstrucao',
@@ -11,6 +14,76 @@ const URLS = {
     MENTIONS: '/Roteiros/GetPersonagensForMentions'
 };
 
+//#endregion -- CONSTANTS
+
+//#region -- UTILITY
+
+function serializeForm(form) {
+    var formData = [];
+    var elements = form.elements;
+
+    for (var i = 0; i < elements.length; i++) {
+        var element = elements[i];
+
+        // Skip unnamed, disabled, or file inputs
+        if (!element.name || element.disabled || element.type === 'file') continue;
+
+        // Handle checkboxes/radios (only if checked)
+        if ((element.type === 'checkbox' || element.type === 'radio') && !element.checked) continue;
+
+        // Handle multi-select
+        if (element.multiple) {
+            for (var j = 0; j < element.options.length; j++) {
+                if (element.options[j].selected) {
+                    formData.push({name: element.name, value: element.options[j].value});
+                }
+            }
+        }
+        // Normal input/select/textarea
+        else {
+            formData.push({name: element.name, value: element.value});
+        }
+    }
+
+    return formData;
+}
+
+/**
+ * Replaces jQuery.ajax for POST requests
+ * @param {string} url - Endpoint URL
+ * @param {Object} data - Data to send (will be URL-encoded)
+ * @param {Object} options - { headers, success, error }
+ */
+function ajaxPost(url, data, options) {
+    const {headers = {}, success, error} = options;
+    const params = new URLSearchParams();
+
+    // Convert { name: "field", value: "val" } to URL-encoded string
+    if (Array.isArray(data)) {
+        data.forEach(item => params.append(item.name, item.value));
+    } else {
+        for (const key in data) {
+            params.append(key, data[key]);
+        }
+    }
+
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            ...headers
+        },
+        body: params.toString()
+    })
+        .then(response => {
+            if (!response.ok) throw response;
+            return response.json();
+        })
+        .then(success)
+        .catch(error);
+}
+
+//#endregion -- UTILITY
 
 //#region -- ALERTS
 function feedbackMessage(status, message) {
@@ -35,6 +108,7 @@ function feedbackMessage(status, message) {
         setTimeout(() => container.style.display = 'none', 2000);
     }, 10);
 }
+
 /* Adds a temporary class to an element that auto-removes after delay
  * @param {HTMLElement} element - DOM element to animate
  * @param {string} className - Class to add/remove
@@ -78,6 +152,66 @@ function initMentions() {
 
 //#endregion -- MENTION
 
+//#region -- PERSONAGEM SELECT 
+
+function resetToSingleSelect() {
+    const container = document.getElementById('dynamicPersonagemContainer');
+    const template = document.getElementById('personagemSelectTemplate');
+    container.innerHTML = '';
+    container.insertAdjacentHTML('beforeend', template.innerHTML);
+
+    document.getElementById('addPersonagem').style.display = '';
+}
+
+function initPersonagemHandlers() {
+    document.getElementById('addPersonagem').addEventListener('click', addPersonagemSelect);
+
+    function addPersonagemSelect() {
+        if (document.querySelectorAll('[name="personagemIds[]"]').length < 10) {
+            document.getElementById('dynamicPersonagemContainer').insertAdjacentHTML('beforeend', document.getElementById('personagemSelectTemplate').innerHTML);
+        }
+    }
+
+    document.getElementById('dynamicPersonagemContainer').addEventListener('click', function (e) {
+        if (e.target.classList.contains('remove-personagem')) {
+            removePersonagemSelect(e.target);
+        }
+    });
+
+    function removePersonagemSelect(button) {
+        if (document.querySelectorAll('[name="personagemIds[]"]').length > 1) {
+            button.closest('.personagem-select-group').remove();
+        }
+    }
+
+    document.getElementById('dynamicPersonagemContainer').addEventListener('change', function (e) {
+        if (e.target.classList.contains('personagem-select')) {
+            const selectedValue = e.target.value;
+            const addPersonagemBtn = document.getElementById('addPersonagem');
+
+            if (selectedValue === "-1") {
+                addPersonagemBtn.style.display = 'none';
+                const groups = document.querySelectorAll('.personagem-select-group');
+                const currentGroup = e.target.closest('.personagem-select-group');
+
+                for (let i = 0; i < groups.length; i++) {
+                    if (groups[i] !== currentGroup) {
+                        groups[i].remove();
+                    }
+                }
+            } else if (selectedValue === "-2") {
+                addPersonagemBtn.style.display = '';
+                if (document.querySelectorAll('.personagem-select-group').length === 1) {
+                    addPersonagemSelect();
+                }
+            } else {
+                addPersonagemBtn.style.display = document.querySelectorAll('.personagem-select-group').length < 10 ? '' : 'none';
+            }
+        }
+    });
+}
+
+//#endregion -- PERSONAGEM SELECT 
 
 //#region -- STATE
 
@@ -146,209 +280,134 @@ function setSuccess(response) {
         behavior: 'smooth',
         block: 'start'
     });
-
 }
 
 //#endregion -- STATE
-
-
-//#region -- PERSONAGEM SELECT 
-function initPersonagemHandlers(isEditMode) {
-    const container = document.getElementById('dynamicPersonagemContainer');
-    const template = document.getElementById('personagemSelectTemplate');
-    const addButton = document.getElementById('addPersonagem');
-
-    // Initialize container content
-    container.innerHTML = isEditMode ? template.innerHTML : '';
-
-    // Add button handler
-    addButton.onclick = function() {
-        const selects = document.querySelectorAll('[name="personagemIds[]"]');
-        if (selects.length < 10) {
-            container.insertAdjacentHTML('beforeend', template.innerHTML);
-        }
-    };
-
-    // Remove button handler
-    container.addEventListener('click', function(e) {
-        if (e.target.classList.contains('remove-personagem')) {
-            const selects = document.querySelectorAll('[name="personagemIds[]"]');
-            if (selects.length > 1) {
-                e.target.closest('.personagem-select-group').remove();
-            }
-        }
-    });
-
-    // Select change handler
-    container.addEventListener('change', function(e) {
-        if (e.target.classList.contains('personagem-select')) {
-            const selects = document.querySelectorAll('[name="personagemIds[]"]');
-            let showAddButton = true;
-
-            for (let i = 0; i < selects.length; i++) {
-                if (selects[i].value === "-1" || selects.length >= 10) {
-                    showAddButton = false;
-                    break;
-                }
-            }
-
-            addButton.style.display = showAddButton ? '' : 'none';
-        }
-    });
-}
-function resetToSingleSelect() {
-    var container = document.getElementById('dynamicPersonagemContainer');
-    var template = document.getElementById('personagemSelectTemplate');
-
-    container.innerHTML = '';
-    container.insertAdjacentHTML('beforeend', template.innerHTML);
-
-    document.getElementById('addPersonagem').style.display = '';
-}
-
-function initPersonagemHandlers() {
-    document.getElementById('addPersonagem').addEventListener('click', addPersonagemSelect);
-
-    function addPersonagemSelect() {
-        if (document.querySelectorAll('[name="personagemIds[]"]').length < 10) {
-            document.getElementById('dynamicPersonagemContainer').insertAdjacentHTML('beforeend', document.getElementById('personagemSelectTemplate').innerHTML);
-        }
-    }
-
-    document.getElementById('dynamicPersonagemContainer').addEventListener('click', function(e) {
-        if (e.target.classList.contains('remove-personagem')) {
-            removePersonagemSelect(e.target);
-        }
-    });
-
-    function removePersonagemSelect(button) {
-        if (document.querySelectorAll('[name="personagemIds[]"]').length > 1) {
-            button.closest('.personagem-select-group').remove();
-        }
-    }
-
-    document.getElementById('dynamicPersonagemContainer').addEventListener('change', function(e) {
-        if (e.target.classList.contains('personagem-select')) {
-            const selectedValue = e.target.value;
-            const addPersonagemBtn = document.getElementById('addPersonagem');
-
-            if (selectedValue === "-1") {
-                addPersonagemBtn.style.display = 'none';
-                const groups = document.querySelectorAll('.personagem-select-group');
-                const currentGroup = e.target.closest('.personagem-select-group');
-
-                for (let i = 0; i < groups.length; i++) {
-                    if (groups[i] !== currentGroup) {
-                        groups[i].remove();
-                    }
-                }
-            } else if (selectedValue === "-2") {
-                addPersonagemBtn.style.display = '';
-                if (document.querySelectorAll('.personagem-select-group').length === 1) {
-                    addPersonagemSelect();
-                }
-            } else {
-                addPersonagemBtn.style.display = document.querySelectorAll('.personagem-select-group').length < 10 ? '' : 'none';
-            }
-        }
-    });
-}
-//#endregion -- PERSONAGEM SELECT 
-
 
 //#region -- CREATE 
 
 document.getElementById('showForm').addEventListener('click', function () {
     setFormState('create', 0);
-    $('#instrucaoForm').off('submit');
-    $('#instrucaoForm').on('submit', function (e) {
-        e.preventDefault();
-        const formData = $(this).serializeArray();
-        $.ajax({
-            url: '/Roteiros/CreateInstrucao',
-            type: 'POST',
-            data: $.param(formData),
-            headers: {'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()},
-            success: function (response) {
-                setSuccess(response);
-                $('#instrucaoForm')[0].reset();
-                resetToSingleSelect();
-                $('.tabela tbody').append($('.form-container'));
-                feedbackMessage('create', '');
-            },
-            error: function (xhr) {
-                feedbackMessage(`erro`, `${xhr.responseJSON?.title || xhr.statusText}`);
-            }
-        });
-    });
+    handleFormCreate();
 });
+
+function handleFormCreate() {
+    const form = document.getElementById('instrucaoForm');
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const formData = serializeForm(form);
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        ajaxPost(URLS.CREATE, formData,
+            {
+                headers: {'RequestVerificationToken': token},
+                success: function (response) {
+                    setSuccess(response);
+                    form.reset();
+                    resetToSingleSelect();
+                    document.querySelector('.tabela tbody')
+                        .appendChild(document.querySelector('.form-container'));
+                    feedbackMessage('create', '');
+                },
+                error: function (xhr) {
+                    xhr.json().then(err => {
+                        feedbackMessage('erro', err.title || xhr.statusText);
+                    }).catch(() => {
+                        feedbackMessage('erro', xhr.statusText);
+                    });
+                }
+            }
+        );
+    });
+}
 
 //#endregion -- CREATE
 
-
 //#region -- EDIT
 
-$(document).on('click', '.edit-instruction', function () {
-    const id = $(this).data('id');
-    $.get(`/Roteiros/GetInstrucao/${id}`, function (dados) {
-        setFormState('edit', id);
-        $('#instrucaoForm input[name="CenaId"]').val(dados.cenaId);
-        $('#instrucaoForm select[name="TipoDeInstrucao"]').val(dados.tipo);
-        $('#instrucaoForm textarea[name="Texto"]').val(dados.texto);
-        $('#instrucaoForm').append(`<input type="hidden" name="Id" value="${dados.id}">`);
-        $('#instrucaoForm').append(`<input type="hidden" name="OrdemCronologica" value="${dados.ordem}">`);
-        $('#instrucaoForm').attr('data-edit-mode', 'true').attr('data-instruction-id', id); //REVER
-        if (dados.instrucoesPersonagens) {
-            $('#dynamicPersonagemContainer').empty();
-            if (dados.instrucoesPersonagens.some(ins => ins.showAll)) {
-                $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                $('[name="personagemIds[]"]').first().val('-1');
-                $('#addPersonagem').hide();
-            } else if (dados.instrucoesPersonagens.some(ins => ins.showAllExcept)) {
-                $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                $('[name="personagemIds[]"]').first().val('-2');
-                const exceptions = dados.instrucoesPersonagens.filter(ins => ins.showAllExcept && ins.personagemId).map(ins => ins.personagemId);
-                exceptions.forEach((personagemId, index) => {
-                    if (index < 9) {
-                        $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                        $(`[name="personagemIds[]"]`).eq(index + 1).val(personagemId);
-                    }
-                });
-                $('#addPersonagem').toggle(exceptions.length < 9);
-            } else if (dados.personagemIds && dados.personagemIds.length > 0) {
-                dados.personagemIds.forEach((personagemId, index) => {
-                    if (index < 10) {
-                        $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                        $(`[name="personagemIds[]"]`).eq(index).val(personagemId);
-                    }
-                });
-                $('#addPersonagem').toggle(dados.personagemIds.filter(id => id > 0).length < 10);
-            }
-        }
-        $('#instrucaoForm').off('submit').on('submit', function (e) {
-            e.preventDefault();
-            const formData = $(this).serializeArray();
-            $.ajax({
-                url: '/Roteiros/EditInstrucao',
-                type: 'POST',
-                data: $.param(formData),
-                headers: {'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()},
-                success: function (response) {
-                    $(`tr[data-id="${id}"]`).remove();
-                    setSuccess(response);
-                    setFormState('idle', 0);
-                    feedbackMessage('edit', `${dados.ordem}`);
-                },
-                error: function (xhr) {
-                    feedbackMessage(`erro`, `${xhr.responseJSON?.title || xhr.statusText}`);
-                }
-            });
-        });
-    });
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('edit-instruction')) {
+        const rowId = e.target.dataset.id;
+        setFormState('edit', rowId);
+        getEditData(rowId);
+        handleFormEdit(rowId);        
+    }
 });
 
-//#endregion -- EDIT
+function getEditData(rowId) {
+    fetch(`${URLS.GET}/${rowId}`)
+        .then(response => response.json())
+        .then(dados => {
+            console.log(rowId);
+            console.log(dados.texto);
+            $('#instrucaoForm input[name="CenaId"]').val(dados.cenaId);
+            $('#instrucaoForm select[name="TipoDeInstrucao"]').val(dados.tipo);
+            $('#instrucaoForm textarea[name="Texto"]').val(dados.texto);
+            $('#instrucaoForm').append(`<input type="hidden" name="Id" value="${dados.id}">`);
+            $('#instrucaoForm').append(`<input type="hidden" name="OrdemCronologica" value="${dados.ordem}">`);
+            $('#instrucaoForm').attr('data-edit-mode', 'true').attr('data-instruction-rowId', rowId); //REVER
+            if (dados.instrucoesPersonagens) {
+                $('#dynamicPersonagemContainer').empty();
+                if (dados.instrucoesPersonagens.some(ins => ins.showAll)) {
+                    $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
+                    $('[name="personagemIds[]"]').first().val('-1');
+                    $('#addPersonagem').hide();
+                } else if (dados.instrucoesPersonagens.some(ins => ins.showAllExcept)) {
+                    $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
+                    $('[name="personagemIds[]"]').first().val('-2');
+                    const exceptions = dados.instrucoesPersonagens.filter(ins => ins.showAllExcept && ins.personagemId).map(ins => ins.personagemId);
+                    exceptions.forEach((personagemId, index) => {
+                        if (index < 9) {
+                            $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
+                            $(`[name="personagemIds[]"]`).eq(index + 1).val(personagemId);
+                        }
+                    });
+                    $('#addPersonagem').toggle(exceptions.length < 9);
+                } else if (dados.personagemIds && dados.personagemIds.length > 0) {
+                    dados.personagemIds.forEach((personagemId, index) => {
+                        if (index < 10) {
+                            $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
+                            $(`[name="personagemIds[]"]`).eq(index).val(personagemId);
+                        }
+                    });
+                    $('#addPersonagem').toggle(dados.personagemIds.filter(id => id > 0).length < 10);
+                }
+            }
+        })
+        .catch(error => {
+            console.error('Request failed:', error);
+        });
+}
 
+function handleFormEdit(rowId) {
+    const form = document.getElementById('instrucaoForm');
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const formData = serializeForm(form);
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+
+        ajaxPost(URLS.EDIT, formData,
+            {
+                headers: {'RequestVerificationToken': token},
+                success: function (response) {
+                    document.querySelector(`tr[data-id="${rowId}"]`)?.remove();
+                    setSuccess(response);
+                    setFormState('idle', 0);
+                    feedbackMessage('edit', `0`);
+                },
+                error: function (xhr) {
+                    xhr.json().then(err => {
+                        feedbackMessage('erro', err.title || xhr.statusText);
+                    }).catch(() => {
+                        feedbackMessage('erro', xhr.statusText);
+                    });
+                }
+            }
+        );      
+    });
+}
+
+//#endregion -- EDIT
 
 //#region -- INSERT
 
@@ -405,7 +464,6 @@ function updateOrderNumbers() {
 
 //#endregion -- INSERT
 
-
 //#region -- DELETE
 
 
@@ -451,7 +509,6 @@ $(document).on('click', '.delete-instruction', function () {
 });
 
 //#endregion -- DELETE
-
 
 //#region -- MOVE
 

@@ -9,7 +9,7 @@
 </script>
 <h2>@ViewData["Title"]</h2>
 <table class="tabela lista-instrucoes">
-	
+	<tbody>
 	<template id="formTemplate">
 		<tr class="form-container">
 			<td colspan="3">
@@ -44,7 +44,7 @@
 							<textarea id="textoInstrucao" name="Texto" class="form-control" rows="3"></textarea>
 						</span>
 						<span class="botoes">
-							<button type="submit" class="botao confirma"> ➜ </button>
+							<button id="formSubmitButton" type="submit" class="botao confirma"> ➜ </button>
 							<br/>
 							<button type="button" id="cancelaForm" class="botao cancela"> ⛌ </button>
 						</span>
@@ -53,13 +53,11 @@
 			</td>
 		</tr>
 	</template>
-
 	@foreach (var instrucao in Model.Instrucoes)
 	{
 		@await Html.PartialAsync("_InstrucaoRow", instrucao)
 	}
-
-
+	</tbody>
 </table>
 <button type="button" id="showForm" class="show-form">Criar nova instrução</button>
 <div id="formFeedback" class="form-feedback"></div>

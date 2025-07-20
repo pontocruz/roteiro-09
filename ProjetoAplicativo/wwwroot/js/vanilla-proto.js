@@ -23,12 +23,33 @@ const EditaRoteiro = (() => {
             document.getElementById('formState').dataset.rowid = newReferenceRowId;
         }
     };
-
     // DOM Helpers
     const $ = (selector, el = document) => el.querySelector(selector);
     const $$ = (selector, el = document) => el.querySelectorAll(selector);
     const createElement = (tag, attrs = {}) => Object.assign(document.createElement(tag), attrs);
+    function feedbackMessage(status, message) {
+        const messages = {
+            create: m => `Instrução ${m} criada com sucesso`,
+            edit: m => `Instrução ${m} atualizada com sucesso`,
+            above: m => `Instrução ${m} inserida acima com sucesso`,
+            below: m => `Instrução ${m} inserida abaixo com sucesso`,
+            erro: m => `Erro: ${m}`
+        };
 
+        const alert = createElement('div', {
+            className: `alert ${status === 'erro' ? 'alert-danger' : 'alert-success'}`,
+            textContent: messages[status]?.(message) || messages.erro(message)
+        });
+
+        const container = $('#formFeedback');
+        container.innerHTML = '';
+        container.appendChild(alert);
+        container.style.display = 'none';
+        setTimeout(() => {
+            container.style.display = '';
+            setTimeout(() => container.style.display = 'none', 2000);
+        }, 10);
+    }
     // Core Functions
     function setFormState(modo, referenceRowId) {
         const { modo: currentModo, referenceRowId: currentRowId } = state;
@@ -70,7 +91,6 @@ const EditaRoteiro = (() => {
         $('#cancelaForm').onclick = () => setFormState('idle', 0);
         state.update(modo, referenceRowId);
     }
-
     function initMentions() {
         const tribute = new Tribute({
             trigger: '@',
@@ -88,7 +108,6 @@ const EditaRoteiro = (() => {
             .then(r => r.json())
             .then(data => tribute.append(0, data));
     }
-
     function initPersonagemHandlers(isEditMode) {
         const container = $('#dynamicPersonagemContainer');
         container.innerHTML = isEditMode ? $('#personagemSelectTemplate').innerHTML : '';
@@ -116,6 +135,10 @@ const EditaRoteiro = (() => {
         });
     }
 
+    
+    
+    
+    
     function handleFormSubmit(url, successCallback) {
         return async function(e) {
             e.preventDefault();
@@ -144,30 +167,10 @@ const EditaRoteiro = (() => {
         };
     }
 
-    function feedbackMessage(status, message) {
-        const messages = {
-            create: m => `Instrução ${m} criada com sucesso`,
-            edit: m => `Instrução ${m} atualizada com sucesso`,
-            above: m => `Instrução ${m} inserida acima com sucesso`,
-            below: m => `Instrução ${m} inserida abaixo com sucesso`,
-            erro: m => `Erro: ${m}`
-        };
-
-        const alert = createElement('div', {
-            className: `alert ${status === 'erro' ? 'alert-danger' : 'alert-success'}`,
-            textContent: messages[status]?.(message) || messages.erro(message)
-        });
-
-        const container = $('#formFeedback');
-        container.innerHTML = '';
-        container.appendChild(alert);
-        container.style.display = 'none';
-        setTimeout(() => {
-            container.style.display = '';
-            setTimeout(() => container.style.display = 'none', 2000);
-        }, 10);
-    }
-
+    
+    
+    
+    
     // Event Bindings
     function initEventListeners() {
         // Create
