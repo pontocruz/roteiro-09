@@ -18,6 +18,31 @@ const URLS = {
 
 //#region -- UTILITY
 
+function updateOrderNumbers() {
+    let currentOrder = 1;
+    const rows = document.querySelectorAll('tbody tr[data-id]');
+
+    rows.forEach(row => {
+        if (row.classList.contains('form-container')) return;
+
+        const orderElement = row.querySelector('.js-ordem');
+        if (orderElement) {
+            orderElement.textContent = currentOrder;
+        }
+        row.dataset.ordem = currentOrder;
+        currentOrder++;
+    });
+}
+
+function addHiddenInput(form, name, value) {
+
+    const hiddenId = document.createElement('input');
+    hiddenId.type = 'hidden';
+    hiddenId.name = name;
+    hiddenId.value = value;
+    form.appendChild(hiddenId);
+}
+
 function serializeForm(form) {
     var formData = [];
     var elements = form.elements;
@@ -48,12 +73,6 @@ function serializeForm(form) {
     return formData;
 }
 
-/**
- * Replaces jQuery.ajax for POST requests
- * @param {string} url - Endpoint URL
- * @param {Object} data - Data to send (will be URL-encoded)
- * @param {Object} options - { headers, success, error }
- */
 function ajaxPost(url, data, options) {
     const {headers = {}, success, error} = options;
     const params = new URLSearchParams();
@@ -83,15 +102,35 @@ function ajaxPost(url, data, options) {
         .catch(error);
 }
 
-//#endregion -- UTILITY
+function ajaxJsonPost(url, data, options) {
+    const {headers = {}, success, error} = options;
 
-//#region -- ALERTS
+    fetch(url, {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            ...headers
+        },
+        body: JSON.stringify(data)
+    })
+        .then(async response => {
+            if (!response.ok) {
+                const err = await response.json().catch(() => null);
+                throw {response, err};
+            }
+            return response.json();
+        })
+        .then(success)
+        .catch(error);
+}
+
 function feedbackMessage(status, message) {
     const messages = {
         create: m => `Instrução ${m} criada com sucesso`,
         edit: m => `Instrução ${m} atualizada com sucesso`,
         above: m => `Instrução ${m} inserida acima com sucesso`,
         below: m => `Instrução ${m} inserida abaixo com sucesso`,
+        insert: m => `Instrução ${m} inserida com sucesso`,
         erro: m => `Erro: ${m}`
     };
 
@@ -109,11 +148,6 @@ function feedbackMessage(status, message) {
     }, 10);
 }
 
-/* Adds a temporary class to an element that auto-removes after delay
- * @param {HTMLElement} element - DOM element to animate
- * @param {string} className - Class to add/remove
- * @param {number} duration - Duration in ms before removal
- */
 function tempClass(element, className, duration = 1000) {
     element.classList.add(className);
     setTimeout(() => {
@@ -121,7 +155,7 @@ function tempClass(element, className, duration = 1000) {
     }, duration);
 }
 
-//#endregion -- ALERTS 
+//#endregion -- UTILITY
 
 //#region -- MENTION
 
@@ -260,7 +294,6 @@ function setFormState(modo, referenceRowId) {
             block: 'end'
         });
 
-
         const cancelButton = document.getElementById('cancelaForm');
         cancelButton.addEventListener('click', () => setFormState('idle', 0));
 
@@ -298,8 +331,7 @@ function handleFormCreate() {
         const formData = serializeForm(form);
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-        ajaxPost(URLS.CREATE, formData,
-            {
+        ajaxPost(URLS.CREATE, formData, {
                 headers: {'RequestVerificationToken': token},
                 success: function (response) {
                     setSuccess(response);
@@ -310,11 +342,16 @@ function handleFormCreate() {
                     feedbackMessage('create', '');
                 },
                 error: function (xhr) {
-                    xhr.json().then(err => {
-                        feedbackMessage('erro', err.title || xhr.statusText);
-                    }).catch(() => {
-                        feedbackMessage('erro', xhr.statusText);
-                    });
+                    if (typeof xhr.json === 'function') {
+                        xhr.json().then(err => {
+                            feedbackMessage('erro', err.title || xhr.statusText);
+                        }).catch(() => {
+                            feedbackMessage('erro', xhr.statusText);
+                        });
+                    } else {
+                        // Fallback for network errors
+                        feedbackMessage('erro', xhr.message || "Unknown error");
+                    }
                 }
             }
         );
@@ -330,7 +367,7 @@ document.addEventListener('click', e => {
         const rowId = e.target.dataset.id;
         setFormState('edit', rowId);
         getEditData(rowId);
-        handleFormEdit(rowId);        
+        handleFormEdit(rowId);
     }
 });
 
@@ -338,39 +375,58 @@ function getEditData(rowId) {
     fetch(`${URLS.GET}/${rowId}`)
         .then(response => response.json())
         .then(dados => {
-            console.log(rowId);
-            console.log(dados.texto);
-            $('#instrucaoForm input[name="CenaId"]').val(dados.cenaId);
-            $('#instrucaoForm select[name="TipoDeInstrucao"]').val(dados.tipo);
-            $('#instrucaoForm textarea[name="Texto"]').val(dados.texto);
-            $('#instrucaoForm').append(`<input type="hidden" name="Id" value="${dados.id}">`);
-            $('#instrucaoForm').append(`<input type="hidden" name="OrdemCronologica" value="${dados.ordem}">`);
-            $('#instrucaoForm').attr('data-edit-mode', 'true').attr('data-instruction-rowId', rowId); //REVER
+            document.querySelector('#instrucaoForm input[name="CenaId"]').value = dados.cenaId;
+            document.querySelector('#instrucaoForm select[name="TipoDeInstrucao"]').value = dados.tipo;
+            document.querySelector('#instrucaoForm textarea[name="Texto"]').value = dados.texto;
+            const form = document.getElementById('instrucaoForm');
+            addHiddenInput(form, 'Id', dados.id);
+            addHiddenInput(form, 'OrdemCronologica', dados.ordem);
+
             if (dados.instrucoesPersonagens) {
-                $('#dynamicPersonagemContainer').empty();
+                const container = document.getElementById('dynamicPersonagemContainer');
+                const template = document.getElementById('personagemSelectTemplate').innerHTML;
+                const addButton = document.getElementById('addPersonagem');
+
+                // Clear existing content
+                container.innerHTML = '';
+
+                // Helper to add select element
+                const addSelect = () => container.insertAdjacentHTML('beforeend', template);
+                const getSelects = () => container.querySelectorAll('[name="personagemIds[]"]');
+
                 if (dados.instrucoesPersonagens.some(ins => ins.showAll)) {
-                    $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                    $('[name="personagemIds[]"]').first().val('-1');
-                    $('#addPersonagem').hide();
+                    // Case 1: Show All
+                    addSelect();
+                    getSelects()[0].value = '-1';
+                    addButton.style.display = 'none';
                 } else if (dados.instrucoesPersonagens.some(ins => ins.showAllExcept)) {
-                    $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                    $('[name="personagemIds[]"]').first().val('-2');
-                    const exceptions = dados.instrucoesPersonagens.filter(ins => ins.showAllExcept && ins.personagemId).map(ins => ins.personagemId);
+                    // Case 2: Show All Except
+                    addSelect();
+                    getSelects()[0].value = '-2';
+
+                    const exceptions = dados.instrucoesPersonagens
+                        .filter(ins => ins.showAllExcept && ins.personagemId)
+                        .map(ins => ins.personagemId);
+
                     exceptions.forEach((personagemId, index) => {
                         if (index < 9) {
-                            $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                            $(`[name="personagemIds[]"]`).eq(index + 1).val(personagemId);
+                            addSelect();
+                            getSelects()[index + 1].value = personagemId;
                         }
                     });
-                    $('#addPersonagem').toggle(exceptions.length < 9);
-                } else if (dados.personagemIds && dados.personagemIds.length > 0) {
+
+                    addButton.style.display = exceptions.length < 9 ? '' : 'none';
+                } else if (dados.personagemIds?.length > 0) {
+                    // Case 3: Specific Personagens
                     dados.personagemIds.forEach((personagemId, index) => {
                         if (index < 10) {
-                            $('#dynamicPersonagemContainer').append($('#personagemSelectTemplate').html());
-                            $(`[name="personagemIds[]"]`).eq(index).val(personagemId);
+                            addSelect();
+                            getSelects()[index].value = personagemId;
                         }
                     });
-                    $('#addPersonagem').toggle(dados.personagemIds.filter(id => id > 0).length < 10);
+
+                    const validIds = dados.personagemIds.filter(id => id > 0);
+                    addButton.style.display = validIds.length < 10 ? '' : 'none';
                 }
             }
         })
@@ -386,24 +442,28 @@ function handleFormEdit(rowId) {
         const formData = serializeForm(form);
         const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
 
-        ajaxPost(URLS.EDIT, formData,
-            {
+        ajaxPost(URLS.EDIT, formData, {
                 headers: {'RequestVerificationToken': token},
                 success: function (response) {
                     document.querySelector(`tr[data-id="${rowId}"]`)?.remove();
                     setSuccess(response);
                     setFormState('idle', 0);
-                    feedbackMessage('edit', `0`);
+                    feedbackMessage('edit', '');
                 },
                 error: function (xhr) {
-                    xhr.json().then(err => {
-                        feedbackMessage('erro', err.title || xhr.statusText);
-                    }).catch(() => {
-                        feedbackMessage('erro', xhr.statusText);
-                    });
+                    if (typeof xhr.json === 'function') {
+                        xhr.json().then(err => {
+                            feedbackMessage('erro', err.title || xhr.statusText);
+                        }).catch(() => {
+                            feedbackMessage('erro', xhr.statusText);
+                        });
+                    } else {
+                        // Fallback for network errors
+                        feedbackMessage('erro', xhr.message || "Unknown error");
+                    }
                 }
             }
-        );      
+        );
     });
 }
 
@@ -411,163 +471,182 @@ function handleFormEdit(rowId) {
 
 //#region -- INSERT
 
-$(document).on('click', '.insert-above, .insert-below', function () {
-    const referenceId = $(this).data('id');
-    const position = $(this).hasClass('insert-above') ? 'above' : 'below';
-    const referenceRow = $(`tr[data-id="${referenceId}"]`);
-    const referenceOrder = parseInt(referenceRow.find('.js-ordem').text());
-    const dados = {ordem: getOrdem()};
-
-    function getOrdem() {
-        if (position === 'above') {
-            return referenceOrder
-        } else {
-            return referenceOrder + 1
-        }
+document.addEventListener('click', function (e) {
+    if (e.target.classList.contains('insert-above') ||
+        e.target.classList.contains('insert-below')) {
+        const referenceId = e.target.dataset.id;
+        const position = e.target.classList.contains('insert-above') ? 'above' : 'below';
+        setFormState(position, referenceId);
+        setInsertData(referenceId, position);
+        handleFormInsert();
     }
-
-    setFormState(position, referenceId);
-    const hiddenFields = `<input type="hidden" name="referenceId" value="${referenceId}"><input type="hidden" name="insertPosition" value="${position}"><input type="hidden" name="OrdemCronologica" value="${position === 'above' ? referenceOrder : referenceOrder + 1}">`;//REVER
-    const clonedForm = $('#instrucaoForm');
-    clonedForm.append(hiddenFields);
-    $(clonedForm).off('submit').on('submit', function (e) {
-        e.preventDefault();
-        const formData = $(this).serializeArray();
-        $.ajax({
-            url: '/Roteiros/InsertInstrucao',
-            type: 'POST',
-            data: $.param(formData),
-            headers: {'RequestVerificationToken': $('input[name="__RequestVerificationToken"]').val()},
-            success: function (response) {
-                setSuccess(response);
-                setFormState('idle', 0);
-                updateOrderNumbers();
-                feedbackMessage(position, `${dados.ordem}`);
-            },
-            error: function (xhr) {
-                feedbackMessage(`erro`, `${xhr.responseJSON?.title || xhr.statusText}`);
-            }
-        });
-    });
 });
 
-function updateOrderNumbers() {
-    let currentOrder = 1;
-    $('tbody tr[data-id]').each(function () {
-        const $row = $(this);
-        if ($row.hasClass('form-container')) return;
-        $row.find('.js-ordem').text(currentOrder);
-        $row.attr('data-ordem', currentOrder);
-        currentOrder++;
+function setInsertData(referenceId, position) {
+    const form = document.getElementById('instrucaoForm');
+    const referenceRow = document.querySelector(`tr[data-id="${referenceId}"]`);
+    const referenceOrder = parseInt(referenceRow.querySelector('.js-ordem').textContent);
+    addHiddenInput(form, 'referenceId', referenceId);
+    addHiddenInput(form, 'insertPosition', position);
+    addHiddenInput(form, 'OrdemCronologica', position === 'above' ? referenceOrder : referenceOrder + 1);
+}
+
+function handleFormInsert() {
+    const form = document.getElementById('instrucaoForm');
+    form.addEventListener('submit', function (e) {
+        e.preventDefault();
+        const formData = serializeForm(form);
+        const token = document.querySelector('input[name="__RequestVerificationToken"]').value;
+        ajaxPost(URLS.INSERT, formData, {
+                headers: {'RequestVerificationToken': token},
+                success: function (response) {
+                    setSuccess(response);
+                    setFormState('idle', 0);
+                    updateOrderNumbers();
+                    feedbackMessage('insert', '');
+                },
+                error: function (xhr) {
+                    if (typeof xhr.json === 'function') {
+                        xhr.json().then(err => {
+                            feedbackMessage('erro', err.title || xhr.statusText);
+                        }).catch(() => {
+                            feedbackMessage('erro', xhr.statusText);
+                        });
+                    } else {
+                        // Fallback for network errors
+                        feedbackMessage('erro', xhr.message || "Unknown error");
+                    }
+                }
+            }
+        );
     });
 }
 
 //#endregion -- INSERT
 
 //#region -- DELETE
+// TRATAR: 
+// quando clicar em delete e move, apagar form
+// OU
+// não deixar clicar em delete e move com form aberto
 
 
-$(document).on('click', '.delete-instruction', function () {
-    if (!confirm('Tem certeza que deseja excluir esta instrução?')) return;
-
-    const $row = $(this).closest('tr');
-    const deletedOrder = parseInt($row.find('.js-ordem').text()); // Get the numeric order value
-    const instructionId = $(this).data('id');
-    const token = $('meta[name="__RequestVerificationToken"]').attr('content');
-
-    $.ajax({
-        url: '/Roteiros/DeletaInstrucao',
-        type: 'POST',
-        data: JSON.stringify({id: instructionId}),
-        contentType: 'application/json',
-        headers: {'RequestVerificationToken': token},
-        success: function (response) {
-            if (response.success) {
-                $row.fadeOut(300, function () {
-                    $(this).remove();
-
-                    // EXACTLY mirror server behavior:
-                    // 1. Find all instructions with higher order numbers
-                    $('.lista-instrucoes tr').each(function () {
-                        const $ordem = $(this).find('.js-ordem');
-                        const currentOrder = parseInt($ordem.text());
-
-                        // 2. Only decrement those with order > deletedOrder
-                        if (currentOrder > deletedOrder) {
-                            $ordem.text(currentOrder - 1);
-                        }
-                    });
-                });
-            } else {
-                alert('Erro ao excluir: ' + response.message);
-            }
-        },
-        error: function (xhr) {
-            alert('Erro: ' + xhr.responseText);
-        }
-    });
+document.addEventListener('click', e => {
+    if (e.target.classList.contains('delete-instruction')) {
+        if (!confirm('Tem certeza que deseja excluir esta instrução?')) return;
+        deleteSingleInstruction(e.target);
+    }
 });
+
+function deleteSingleInstruction(button) {
+    const row = button.closest('tr');
+    const orderElement = row.querySelector('.js-ordem');
+    const deletedOrder = parseInt(orderElement.textContent);
+    const instructionId = button.dataset.id;
+    const token = document.querySelector('meta[name="__RequestVerificationToken"]').content;
+    ajaxJsonPost(
+        URLS.DELETE, {id: instructionId}, {
+            headers: {'RequestVerificationToken': token},
+            success: function (response) {
+                if (response.success) {
+                    row.animate([{opacity: 1}, {opacity: 0}], {duration: 300})
+                        .finished.then(() => {
+                        row.remove();
+                        document.querySelectorAll('.lista-instrucoes tr').forEach(tr => {
+                            const ordemElement = tr.querySelector('.js-ordem');
+                            if (!ordemElement) return;
+                            const currentOrder = parseInt(ordemElement.textContent);
+                            if (currentOrder > deletedOrder) {
+                                ordemElement.textContent = currentOrder - 1;
+                            }
+                        });
+                    }, 300);
+                } else {
+                    alert('Erro ao excluir: ' + response.message);
+                }
+            },
+            error: function (xhr) {
+                const errorMsg = xhr.err?.message || xhr.response?.statusText || xhr.message || "Erro desconhecido";
+                alert('Erro: ' + errorMsg);
+            }
+        }
+    );
+}
 
 //#endregion -- DELETE
 
 //#region -- MOVE
-
+// TRATAR: 
+// quando clicar em delete e move, apagar form
+// OU
+// não deixar clicar em delete e move com form aberto
 // Move Up handler
-$(document).on('click', '.move-up', function () {
-    const instructionId = $(this).data('id');
-    moveInstruction(instructionId, 'up');
+document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('move-up')) {
+        const instructionId = event.target.dataset.id;
+        moveInstruction(instructionId, 'up');
+    }
 });
 
 // Move Down handler
-$(document).on('click', '.move-down', function () {
-    const instructionId = $(this).data('id');
-    moveInstruction(instructionId, 'down');
+document.addEventListener('click', function(event) {
+    if (event.target.classList.contains('move-down')) {
+        const instructionId = event.target.dataset.id;
+        moveInstruction(instructionId, 'down');
+    }
 });
 
 function moveInstruction(instructionId, direction) {
-    const token = $('meta[name="__RequestVerificationToken"]').attr('content');
-    const $row = $(`tr[data-id="${instructionId}"]`);
-    const currentOrder = parseInt($row.find('.js-ordem').text());
+    const token = document.querySelector('meta[name="__RequestVerificationToken"]').content;
+    const row = document.querySelector(`tr[data-id="${instructionId}"]`);
+    const currentOrder = parseInt(row.querySelector('.js-ordem').textContent);
+    const totalRows = document.querySelectorAll('.lista-instrucoes tr').length;
 
     // Prevent moving beyond limits
     if ((direction === 'up' && currentOrder <= 1) ||
-        (direction === 'down' && currentOrder >= $('.lista-instrucoes tr').length)) {
+        (direction === 'down' && currentOrder >= totalRows)) {
         return;
     }
 
-    $.ajax({
-        url: `/Roteiros/MoveInstruction${direction === 'up' ? 'Up' : 'Down'}`,
-        type: 'POST',
-        data: JSON.stringify({id: instructionId}),
-        contentType: 'application/json',
-        headers: {'RequestVerificationToken': token},
-        success: function (response) {
-            if (response.success) {
-                // Update client-side display
-                const $targetRow = $(`tr[data-id="${response.swappedId}"]`);
+    ajaxJsonPost(
+        `/Roteiros/MoveInstruction${direction === 'up' ? 'Up' : 'Down'}`,
+        { id: instructionId },
+        {
+            headers: { 'RequestVerificationToken': token },
+            success: function(response) {
+                if (response.success) {
+                    // Update client-side display
+                    const targetRow = document.querySelector(`tr[data-id="${response.swappedId}"]`);
 
-                // Swap the order numbers
-                $row.find('.js-ordem').text(response.newOrder);
-                $targetRow.find('.js-ordem').text(response.swappedOrder);
+                    // Swap the order numbers
+                    row.querySelector('.js-ordem').textContent = response.newOrder;
+                    targetRow.querySelector('.js-ordem').textContent = response.swappedOrder;
 
-                // Reorder DOM elements if needed
-                if (direction === 'up') {
-                    $row.insertBefore($targetRow);
+                    // Reorder DOM elements
+                    if (direction === 'up') {
+                        row.parentNode.insertBefore(row, targetRow);
+                    } else {
+                        row.parentNode.insertBefore(row, targetRow.nextSibling);
+                    }
+
+                    // Highlight animation
+                    [row, targetRow].forEach(el => {
+                        el.classList.add('updated-row');
+                        setTimeout(() => {
+                            el.classList.remove('updated-row');
+                        }, 1000);
+                    });
+
                 } else {
-                    $row.insertAfter($targetRow);
+                    alert('Erro ao mover: ' + response.message);
                 }
-                $row.add($targetRow).addClass('updated-row').delay(1000).queue(function () {
-                    $(this).removeClass('updated-row').dequeue();
-                });
-
-            } else {
-                alert('Erro ao mover: ' + response.message);
+            },
+            error: function(xhr) {
+                const errorMsg = xhr.err?.message || xhr.response?.statusText || xhr.message || "Erro desconhecido";
+                alert('Erro: ' + errorMsg);
             }
-        },
-        error: function (xhr) {
-            alert('Erro: ' + xhr.responseText);
         }
-    });
+    );
 }
 
 //#endregion -- MOVE
